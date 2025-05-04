@@ -6,17 +6,12 @@ FROM python:3.8.13
 # 3. Copy the content of the current directory to the image
 # 4. Run the populate_db.py script
 
-# 1. Copy requirements.txt first to leverage Docker caching
+WORKDIR /src
+
 COPY requirements.txt .
 
-# 2. Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 3. Copy the entire current directory (api/) into /app in the image
-COPY . /app
+COPY . .
 
-# Set working directory to /app
-WORKDIR /app
-
-# 4. Run the populate script when the container starts
 CMD ["python", "populate_db.py"]

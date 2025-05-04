@@ -9,16 +9,18 @@ from tensorflow.keras.applications import ResNet50
 from tensorflow.keras.applications.resnet50 import decode_predictions, preprocess_input
 from tensorflow.keras.preprocessing import image
 
-# TODO
-# Connect to Redis and assign to variable `db``
-# Make use of settings.py module to get Redis settings like host, port, etc.
-db = None
+# Connect to Redis using settings from settings.py
+db = redis.Redis(
+    host=settings.REDIS_IP,
+    port=settings.REDIS_PORT,
+    db=settings.REDIS_DB_ID
+)
 
 # TODO
 # Load your ML model and assign to variable `model`
 # See https://drive.google.com/file/d/1ADuBSE4z2ZVIdn66YDSwxKv-58U7WEOn/view?usp=sharing
 # for more information about how to use this model.
-model = None
+model = ResNet50(weights="imagenet")
 
 
 def predict(image_name):

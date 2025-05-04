@@ -31,7 +31,25 @@ def login(username: str, password: str) -> Optional[str]:
     #  7. Return the token if login is successful, otherwise return `None`.
     #  8. Test the function with various inputs.
 
-    return None
+    url = f"{API_BASE_URL}/login"
+    headers = {
+        "accept": "application/json",
+        "Content-Type": "application/x-www-form-urlencoded",
+    }
+    data = {
+        "grant_type": "",
+        "username": username,
+        "password": password,
+        "scope": "",
+        "client_id": "",
+        "client_secret": "",
+    }
+    response = requests.post(url, headers=headers, data=data)
+    if response.status_code == 200:
+        return response.json()["access_token"]
+    else:
+        print(response.text)
+        return None
 
 
 def predict(token: str, uploaded_file: Image) -> requests.Response:
