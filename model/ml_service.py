@@ -9,11 +9,15 @@ from tensorflow.keras.applications import ResNet50
 from tensorflow.keras.applications.resnet50 import decode_predictions, preprocess_input
 from tensorflow.keras.preprocessing import image
 
-# Connect to Redis using settings from settings.py
-db = redis.Redis(
+import logging
+logging.basicConfig(level=logging.INFO)
+# Connect to Redis and assign to variable `db``
+# Make use of settings.py module to get Redis settings like host, port, etc.
+db = redis.StrictRedis(
     host=settings.REDIS_IP,
     port=settings.REDIS_PORT,
-    db=settings.REDIS_DB_ID
+    db=settings.REDIS_DB_ID,
+    decode_responses=True
 )
 
 # TODO
@@ -39,18 +43,27 @@ def predict(image_name):
         Model predicted class as a string and the corresponding confidence
         score as a number.
     """
-    class_name = None
-    pred_probability = None
-    # TODO: Implement the code to predict the class of the image_name
+     # Ruta de la imagen
+    image_path = os.path.join(settings.UPLOAD_FOLDER, image_name)
 
-    # Load image
+    # check if image exists
+    if not os.path.exists(image_path):
+        print(f"Image {image_name} not found in {settings.UPLOAD_FOLDER}")
+        return None, None
 
-    # Apply preprocessing (convert to numpy array, match model input dimensions (including batch) and use the resnet50 preprocessing)
+    # Cargar y preprocesar la imagen
+    img = image.load_img(image_path, target_size=(224, 224))
+    img_array = image.img_to_array(img)
+    img_array = np.expand_dims(img_array, axis=0)
+    img_array = preprocess_input(img_array)
 
-    # Get predictions using model methods and decode predictions using resnet50 decode_predictions
-    _, class_name, pred_probability = None
+    # Realizar predicción
+    predictions = model.predict(img_array)
+    decoded_predictions = decode_predictions(predictions, top=1)[0][0]
 
-    # Convert probabilities to float and round it
+    # Obtener clase y probabilidad
+    class_name = decoded_predictions[1]
+    pred_probability = round(float(decoded_predictions[2]), 4)
 
     return class_name, pred_probability
 
@@ -67,36 +80,43 @@ def classify_process():
     received, then, run our ML model to get predictions.
     """
     while True:
-        # Inside this loop you should add the code to:
-        #   1. Take a new job from Redis
-        #   2. Run your ML model on the given data
-        #   3. Store model prediction in a dict with the following shape:
-        #      {
-        #         "prediction": str,
-        #         "score": float,
-        #      }
-        #   4. Store the results on Redis using the original job ID as the key
-        #      so the API can match the results it gets to the original job
-        #      sent
-        # Hint: You should be able to successfully implement the communication
-        #       code with Redis making use of functions `brpop()` and `set()`.
-        # TODO
-        # Take a new job from Redis
+        # Obtener un nuevo trabajo desde Redis
+        job_data = db.brpop(settings.REDIS_QUEUE)
+        if job_data is None:
+            logging.info("No job found, sleeping...")
+            print("No job found, sleeping...")
+            time.sleep(settings.SERVER_SLEEP)
+            continue
 
-        # Decode the JSON data for the given job
+        # Decodificar datos del trabajo
+        _ , job_payload = job_data
+        job_payload = json.loads(job_payload)
 
-        # Important! Get and keep the original job ID
+        job_id = job_payload.get("id")  # Obtener el ID real del trabajo de los datos
+        if not job_id:
+            print("No job ID found in payload, skipping...")
+            continue
 
-        # Run the loaded ml model (use the predict() function)
+        # Obtener el nombre de la imagen
+        image_name = job_payload.get("image_name")
+        if not image_name:
+            continue
 
-        # Prepare a new JSON with the results
-        output = {"prediction": None, "score": None}
+        # Realizar predicción
+        class_name, pred_probability = predict(image_name)
 
-        # Store the job results on Redis using the original
-        # job ID as the key
+        # Preparar resultados
+        output = {
+            "prediction": class_name,
+            "score": pred_probability
+        }
 
-        # Sleep for a bit
+        # Almacenar resultados en Redis
+        db.set(job_id, json.dumps(output))
+
+        # Dormir un poco antes de la siguiente iteración
         time.sleep(settings.SERVER_SLEEP)
+
 
 
 if __name__ == "__main__":

@@ -4,6 +4,14 @@ import requests
 import streamlit as st
 from app.settings import API_BASE_URL
 from PIL import Image
+from app.utils.browser import save_to_local_storage
+
+
+import time
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 
 
 def login(username: str, password: str) -> Optional[str]:
@@ -17,19 +25,6 @@ def login(username: str, password: str) -> Optional[str]:
     Returns:
         Optional[str]: token if login is successful, None otherwise
     """
-    # TODO: Implement the login function
-    # Steps to Build the `login` Function:
-    #  1. Construct the API endpoint URL using `API_BASE_URL` and `/login`.
-    #  2. Set up the request headers with `accept: application/json` and
-    #     `Content-Type: application/x-www-form-urlencoded`.
-    #  3. Prepare the data payload with fields: `grant_type`, `username`, `password`,
-    #     `scope`, `client_id`, and `client_secret`.
-    #  4. Use `requests.post()` to send the API request with the URL, headers,
-    #     and data payload.
-    #  5. Check if the response status code is `200`.
-    #  6. If successful, extract the token from the JSON response.
-    #  7. Return the token if login is successful, otherwise return `None`.
-    #  8. Test the function with various inputs.
 
     url = f"{API_BASE_URL}/login"
     headers = {
@@ -42,14 +37,34 @@ def login(username: str, password: str) -> Optional[str]:
         "password": password,
         "scope": "",
         "client_id": "",
-        "client_secret": "",
+        "client_secret": ""
     }
+
     response = requests.post(url, headers=headers, data=data)
+
+    logger.info(f"Login response: {response.status_code} - {response.text}")
+
+
     if response.status_code == 200:
-        return response.json()["access_token"]
-    else:
-        print(response.text)
-        return None
+        token = response.json().get("access_token")
+        logger.info(f"Token: {token}")
+        return token
+
+    # TODO: Implement the login function
+    # Steps to Build the `login` Function:
+    # [ ] Construct the API endpoint URL using `API_BASE_URL` and `/login`.
+    # [ ] Set up the request headers with `accept: application/json` and
+    #     `Content-Type: application/x-www-form-urlencoded`.
+    # [ ] Prepare the data payload with fields: `grant_type`, `username`, `password`,
+    #     `scope`, `client_id`, and `client_secret`.
+    # [ ] Use `requests.post()` to send the API request with the URL, headers,
+    #     and data payload.
+    # [ ] Check if the response status code is `200`.
+    # [ ] If successful, extract the token from the JSON response.
+    # [ ] Return the token if login is successful, otherwise return `None`.
+    # [ ] Test the function with various inputs.
+
+    return None
 
 
 def predict(token: str, uploaded_file: Image) -> requests.Response:
@@ -65,12 +80,26 @@ def predict(token: str, uploaded_file: Image) -> requests.Response:
     """
     # TODO: Implement the predict function
     # Steps to Build the `predict` Function:
-    #  1. Create a dictionary with the file data. The file should be a
-    #     tuple with the file name and the file content.
-    #  2. Add the token to the headers.
-    #  3. Make a POST request to the predict endpoint.
-    #  4. Return the response.
-    response = None
+
+    url = f"{API_BASE_URL}/model/predict"
+    # [ ] Create a dictionary with the file data. The file should be a
+    #        tuple with the file name and the file content.
+    files = {
+        "file": (uploaded_file.name, uploaded_file.getvalue())
+    }
+    # [ ] Add the token to the headers.
+    headers = {
+        "Authorization": f"Bearer {token}"
+    }
+    # [ ] Make a POST request to the predict endpoint.
+    try: 
+        response = requests.post(url, headers=headers, files=files)
+    except requests.RequestException as e:
+        logger.error(f"Error during prediction: {e}")
+        st.error("An error occurred while making the prediction.")
+        response = None
+
+    # [ ] Return the response.
 
     return response
 
@@ -89,18 +118,32 @@ def send_feedback(
         image_file_name (str): name of the image file
 
     Returns:
-        requests.Response: _description_
+        requests.Response: response from the API
     """
-    # TODO: Implement the send_feedback function
-    # Steps to Build the `send_feedback` Function:
-    # 1. Create a dictionary with the feedback data including feedback, score,
-    #    predicted_class, and image_file_name.
-    # 2. Add the token to the headers.
-    # 3. Make a POST request to the feedback endpoint.
-    # 4. Return the response.
-    response = None
-
-    return response
+    url = f"{API_BASE_URL}/feedback"
+    
+    # Create payload with feedback data
+    payload = {
+        "feedback": feedback,
+        "score": score,
+        "predicted_class": prediction,
+        "image_file_name": image_file_name
+    }
+    
+    # Add token to headers
+    headers = {
+        "Authorization": f"Bearer {token}"
+    }
+    
+    try:
+        # Make POST request to feedback endpoint
+        response = requests.post(url, json=payload, headers=headers)
+        logger.info(f"Feedback response: {response.status_code} - {response.text}")
+        return response
+    except requests.RequestException as e:
+        logger.error(f"Error sending feedback: {e}")
+        st.error("An error occurred while sending feedback.")
+        return None
 
 
 # Interfaz de usuario
@@ -113,13 +156,18 @@ st.markdown(
 # Formulario de login
 if "token" not in st.session_state:
     st.markdown("## Login")
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
+    username = st.text_input("Username", value="admin@example.com")
+    password = st.text_input("Password", type="password", value="admin"),
     if st.button("Login"):
         token = login(username, password)
         if token:
             st.session_state.token = token
+            
+            save_to_local_storage("access_token", token)
             st.success("Login successful!")
+
+            time.sleep(0.5)  
+            st.rerun()
         else:
             st.error("Login failed. Please check your credentials.")
 else:
@@ -171,12 +219,11 @@ if "token" in st.session_state:
                 response = send_feedback(
                     token, feedback, score, prediction, image_file_name
                 )
-                if response.status_code == 201:
+                if response and response.status_code == 201:
                     st.success("Thanks for your feedback!")
                 else:
                     st.error("Error sending feedback. Please try again.")
             else:
-                st.warning("Please provide feedback before sending.")
                 st.warning("Please provide feedback before sending.")
 
     # Pie de página

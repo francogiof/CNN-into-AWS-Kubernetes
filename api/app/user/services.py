@@ -40,6 +40,13 @@ async def all_users(database: Session) -> models.User:
     Returns:
         list[models.User]: A list of all user entries in the database.
     """
+    user = {
+        "name": "John Doe",
+        "email": "john@example.com"
+    }
+
+    items = user.items()
+
     return database.query(models.User).all()
 
 

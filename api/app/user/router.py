@@ -17,11 +17,23 @@ async def create_user_registration(
     # TODO: Implement the create_user_registration endpoint
     # Make sure to:
     #  1. Verify the user email doesn't already exist, see `verify_email_exist()` function under `validator.py`
-    #  2. If the email already exists, raise a 400 HTTPException
-    #  3. If the email doesn't exist, create a new user, see `new_user_register()` function under `services.py`
-    #  4. Return the new user object created
+    validation = await validator.verify_email_exist(request.email, database)
+    if validation:
+        #  2. If the email already exists, raise a 400 HTTPException
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already exists",
+        )
 
-    new_user = None
+    #  3. If the email doesn't exist, create a new user, see `new_user_register()` function under `services.py`
+    user = schema.User(
+        email=request.email,
+        password=request.password,
+        name=request.name,
+    )
+    #  4. Return the new user object created
+    new_user = await services.new_user_register(user, database)
+
 
     return new_user
 
@@ -50,3 +62,17 @@ async def delete_user_by_id(
     current_user: schema.User = Depends(get_current_user),
 ):
     return await services.delete_user_by_id(id, database)
+
+@router.put("/{id}", response_model=schema.DisplayUser)
+async def update_user_by_id(
+    id: int,
+    request: schema.User,
+    database: Session = Depends(db.get_db),
+    current_user: schema.User = Depends(get_current_user),
+):
+   
+    #TODO: Do something
+    # [ ] Fix the update_user_by_id endpoint
+    # [x] Implement the update_user_by_id function in services.py
+
+    return None  
